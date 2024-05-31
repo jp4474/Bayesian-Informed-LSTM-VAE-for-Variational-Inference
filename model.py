@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import numpy as np
 
 class Encoder(nn.Module):
-    def __init__(self, input_size, hidden_size, num_layers):
+    def __init__(self, input_size, hidden_size, num_layers, bidirectional):
         super(Encoder, self).__init__()
         self.hidden_size = hidden_size
         self.num_layers = num_layers
@@ -67,7 +67,8 @@ class LSTMVAE(nn.Module):
         self.lstm_enc = Encoder(
             input_size=input_size, 
             hidden_size=hidden_size, 
-            num_layers=self.num_layers
+            num_layers=self.num_layers,
+            bidirectional = True
         )
 
         self.lstm_dec = Decoder(
@@ -136,7 +137,7 @@ class LSTMVAE(nn.Module):
         mu = args[2]
         log_var = args[3]
 
-        kld_weight = 0.00025  # Account for the minibatch samples from the dataset
+        kld_weight = 64.0/(30*1000)  # Account for the minibatch samples from the dataset
         recons_loss = F.mse_loss(recons, input)
 
         kld_loss = torch.mean(

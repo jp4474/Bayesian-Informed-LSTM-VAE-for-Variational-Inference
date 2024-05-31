@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import pickle
+import os
 from scipy.integrate import odeint
 from sklearn.preprocessing import StandardScaler
 
@@ -29,7 +30,7 @@ def ode_function(y, time, alpha, beta, mu, delta, lamb, nu, t0):
     dydt_1 = mu_tau * Total_FoB(time) + beta_tau * CAR_negative_MZB(time) - lamb * y[1]
     return [dydt_0, dydt_1]
 
-def simulate_process(t0 = 0, tFin = 30, tStep = 0.01, n_iterations = 1000):
+def simulate_process(t0 = 0, tFin = 30, tStep = 0.01, n_iterations = 1000, sequence_length = 30, suffix = 'train'):
     """
     Simulates a process using the given parameters and returns a list of dictionaries containing the simulation results.
 
@@ -44,12 +45,19 @@ def simulate_process(t0 = 0, tFin = 30, tStep = 0.01, n_iterations = 1000):
             - 'parameters' (Dict[str, float]): A dictionary containing the simulated parameters.
             - 'data' (List[List[float]]): A list of lists containing the simulation observations. Each inner list contains the time, observation 1, and observation 2.
     """
+    if not os.path.exists('data'):
+        os.makedirs('data')
+
+    if not os.path.exists(f'data/{suffix}'):
+        os.makedirs(f'data/{suffix}')
+
+    if not os.path.exists(f'data/{suffix}/processed'):
+        os.makedirs(f'data/{suffix}/processed')
+
     time_space = np.arange(t0, tFin+tStep, tStep)
     indexes = (time_space % 0.5 == 0)
     result = [0] * n_iterations
     for i in range(n_iterations):
-        # scaler = StandardScaler()
-        # sample priors
         alpha = np.random.normal(0.01, 0.5)
         beta = np.random.normal(0.01, 0.5)
         mu = np.random.normal(0.01, 0.5)
@@ -63,35 +71,31 @@ def simulate_process(t0 = 0, tFin = 30, tStep = 0.01, n_iterations = 1000):
         sol = sol[indexes]
         observations = [[t, obs[0], obs[1]] for t, obs in zip(time_space[indexes], sol)]
         result[i] = {'parameters' : parameters, 'data' : observations}
-    return result
 
-def preprocess_data(sequence_length = 30):
-    with open('data/simulated_data.pkl', 'rb') as f:
-        processes = pickle.load(f)
-    
-    for i in range(len(processes)):
-        parameters = processes[i]['parameters']
-        data = processes[i]['data']
-        #fixme
-        for idx in range(len(data) - sequence_length):
-            if (idx+sequence_length) > len(data):
-                indexes = list(range(idx, len(data)))
-            else:
-                indexes = list(range(idx, idx + sequence_length))
-            x = [data[i] for i in indexes]
-
-            with open(f'data/processed/simulated_data_{i}_{idx}.pkl', 'wb') as f:
-                pickle.dump({'parameters' : parameters, 'x' : x}, f)
-
-
-if __name__ == "__main__":    
-    N_ITERATIONS = 1000
-    T0 = 0
-    TFIN = 30
-    TSTEP = 0.01
-    result = simulate_process(t0 = T0, tFin = TFIN, tStep = TSTEP, n_iterations = N_ITERATIONS)
-
-    with open('data/simulated_data.pkl', 'wb') as f:
+    with open(f'data/{suffix}/simulated_data.pkl', 'wb') as f:
         pickle.dump(result, f)
 
-    preprocess_data()
+    def preprocess_data(suffix = 'train', sequence_length = 30):
+        with open(f'data/{suffix}/simulated_data.pkl', 'rb') as f:
+            processes = pickle.load(f)
+        
+        for i in range(len(processes)):
+            parameters = processes[i]['parameters']
+            data = processes[i]['data']
+            #fixme
+            for idx in range(len(data) - sequence_length):
+                if (idx+sequence_length) > len(data):
+                    indexes = list(range(idx, len(data)))
+                else:
+                    indexes = list(range(idx, idx + sequence_length))
+                x = [data[i] for i in indexes]
+
+                with open(f'data/{suffix}/processed/simulated_data_{i}_{idx}.pkl', 'wb') as f:
+                    pickle.dump({'parameters' : parameters, 'x' : x}, f)
+
+    preprocess_data(suffix=suffix, sequence_length=sequence_length)
+
+if __name__ == "__main__":    
+    simulate_process(t0 = 0, tFin = 30, tStep = 0.01, suffix='train', n_iterations = 1000, sequence_length = 30)
+    simulate_process(t0 = 0, tFin = 30, tStep = 0.01, suffix='val', n_iterations = 200, sequence_length = 30)
+
