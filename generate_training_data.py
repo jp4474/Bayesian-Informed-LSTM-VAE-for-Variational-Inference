@@ -4,6 +4,7 @@ import pickle
 import os
 from scipy.integrate import odeint
 from sklearn.preprocessing import StandardScaler
+import matplotlib.pyplot as plt
 
 def Total_FoB(time, M0 = np.exp(16.7), nu = 0.004, b0 = 20):
     return M0 * (1 + np.exp(-nu * (time - b0) ** 2))
@@ -30,7 +31,7 @@ def ode_function(y, time, alpha, beta, mu, delta, lamb, nu, t0):
     dydt_1 = mu_tau * Total_FoB(time) + beta_tau * CAR_negative_MZB(time) - lamb * y[1]
     return [dydt_0, dydt_1]
 
-def simulate_process(t0 = 0, tFin = 30, tStep = 0.01, n_iterations = 1000, sequence_length = 30, suffix = 'train'):
+def simulate_process(t0 = 0, tFin = 30, tStep = 0.01, n_iterations = 1000, sequence_length = 30, suffix = 'train', as_pickle = True):
     """
     Simulates a process using the given parameters and returns a list of dictionaries containing the simulation results.
 
@@ -57,19 +58,36 @@ def simulate_process(t0 = 0, tFin = 30, tStep = 0.01, n_iterations = 1000, seque
     time_space = np.arange(t0, tFin+tStep, tStep)
     indexes = (time_space % 0.5 == 0)
     result = [0] * n_iterations
+
+    df = pd.DataFrame()
     for i in range(n_iterations):
+        #sol = np.array([-1])
+        #while np.any(sol < 0):
+        alpha, beta, mu, delta, lambda_wt, nu = 0, 0, 0, 0, 0, 0
+        while(np.any(np.array([alpha, beta, mu, delta, lambda_wt, nu]) < 0)):
+            alpha = np.random.normal(0.01, 0.5)
+            beta = np.random.normal(0.01, 0.5)
+            mu = np.random.normal(0.01, 0.5)
+            nu = np.random.normal(0.01, 0.5)
+            delta = np.random.normal(0.8, 0.3)
+            lambda_wt = np.random.normal(0.1, 0.3)
+
+        y0 = [24336.98, 17701.872]
+        sol = odeint(ode_function, y0, time_space, args=(alpha, beta, mu, delta, lambda_wt, nu, t0))
+        parameters = {'alpha' : alpha, 'beta' : beta, 'mu' : mu, 'nu' : nu, 'delta' : delta, 'lambda' : lambda_wt}
         alpha = np.random.normal(0.01, 0.5)
         beta = np.random.normal(0.01, 0.5)
         mu = np.random.normal(0.01, 0.5)
         nu = np.random.normal(0.01, 0.5)
         delta = np.random.normal(0.8, 0.3)
         lambda_wt = np.random.normal(0.1, 0.3)
-        y0 = [24336.98/1e8, 17701.872/1e8]
+        y0 = [24336.98, 17701.872]
         sol = odeint(ode_function, y0, time_space, args=(alpha, beta, mu, delta, lambda_wt, nu, t0))
         parameters = {'alpha' : alpha, 'beta' : beta, 'mu' : mu, 'nu' : nu, 'delta' : delta, 'lambda' : lambda_wt}
-  
+
         sol = sol[indexes]
         observations = [[t, obs[0], obs[1]] for t, obs in zip(time_space[indexes], sol)]
+
         result[i] = {'parameters' : parameters, 'data' : observations}
 
     with open(f'data/{suffix}/simulated_data.pkl', 'wb') as f:
@@ -93,9 +111,87 @@ def simulate_process(t0 = 0, tFin = 30, tStep = 0.01, n_iterations = 1000, seque
                 with open(f'data/{suffix}/processed/simulated_data_{i}_{idx}.pkl', 'wb') as f:
                     pickle.dump({'parameters' : parameters, 'x' : x}, f)
 
-    preprocess_data(suffix=suffix, sequence_length=sequence_length)
+    if as_pickle:
+        preprocess_data(suffix=suffix, sequence_length=sequence_length)
+
+def parse_as_dataframe():
+    with open('data/train/simulated_data.pkl', 'rb') as f:
+        processes = pickle.load(f)
+
+    data_process_1_dict = {}
+    data_process_2_dict = {}
+    for i in range(len(processes)):
+        # parameters = processes[i]['parameters']
+        data = processes[i]['data']
+        data_process_1_dict[f'Process 1_{i}'] = [item[1] for item in data] 
+        data_process_2_dict[f'Process 1_{i}'] = [item[2] for item in data]
+
+    df_1 = pd.DataFrame(data_process_1_dict)
+    df_1['time'] = np.arange(0, 30.01, 0.5)
+    df_2 = pd.DataFrame(data_process_2_dict)
+    df_2['time'] = np.arange(0, 30.01, 0.5)
+
+    return df_1, df_2
+
+def generate_sinusoidal(t0 = 0, tFin = 30, tStep = 0.01, suffix='train', n_iterations = 1000, sequence_length = 30, as_pickle=False):
+    if not os.path.exists('data'):
+        os.makedirs('data')
+
+    if not os.path.exists(f'data/{suffix}'):
+        os.makedirs(f'data/{suffix}')
+
+    if not os.path.exists(f'data/{suffix}/processed'):
+        os.makedirs(f'data/{suffix}/processed')
+
+    time_space = np.arange(t0, tFin+tStep, tStep)
+    #indexes = (time_space % 0.5 == 0)
+    result = [0] * n_iterations
+
+    a = np.random.normal(1, 0.1)
+    b = np.random.normal(1, 0.1)
+
+    y = np.sin(2*np.pi/b * time_space)
+
+    df = pd.DataFrame({'x': time_space, 'y': y})
+
+    def preprocess(data, suffix = 'train', sequence_length = 30):
+        for i in range(len(data) - sequence_length):
+            if (i+sequence_length) > len(data):
+                indexes = list(range(i, len(data)))
+            else:
+                indexes = list(range(i, i + sequence_length))
+            x = data['x'][indexes]
+            y = data['y'][indexes]
+
+            with open(f'data/{suffix}/processed/sinusoidal_{i}.pkl', 'wb') as f:
+                pickle.dump({'x' : x, 'y' : y}, f)
+                            
+    preprocess(df, suffix=suffix, sequence_length=sequence_length)
+
 
 if __name__ == "__main__":    
-    simulate_process(t0 = 0, tFin = 30, tStep = 0.01, suffix='train', n_iterations = 1000, sequence_length = 30)
-    simulate_process(t0 = 0, tFin = 30, tStep = 0.01, suffix='val', n_iterations = 200, sequence_length = 30)
+    generate_sinusoidal(tFin=50)
+    #simulate_process(t0 = 0, tFin = 30, tStep = 0.01, suffix='train', n_iterations = 1000, sequence_length = 30, as_pickle=False)
+    #simulate_process(t0 = 0, tFin = 30, tStep = 0.01, suffix='val', n_iterations = 200, sequence_length = 30)
+    
+    # df_1, df_2 = parse_as_dataframe()
+
+    # # Standardize by row
+    # df_standardized = df_2.drop('time', axis=1)
+    # df_standardized = df_1.iloc[:, :-1].apply(lambda x: (x - np.mean(x)) / np.std(x), axis=1)
+
+    # # Now you can plot the standardized data
+    # plt.plot(df_1['time'], df_standardized)
+    # plt.xlabel('Time')
+    # plt.ylabel('CAR positive GCB cells in WT')
+    # plt.title('CAR positive GCB cells in WT')
+    # plt.show()
+
+    # df = generate_sinusoidal(tFin=50)
+
+    # plt.plot(df['x'], df['y'])
+    # plt.xlabel('Time')
+    # plt.ylabel('y')
+    # plt.title('Sinusoidal function')
+    # plt.show()
 
