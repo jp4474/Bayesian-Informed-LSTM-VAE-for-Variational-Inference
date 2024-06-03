@@ -121,3 +121,47 @@ class LSTMVAE(nn.Module):
         loss = reconstruction_loss + kld_weight * kld_loss
         return {'loss': loss, 'Reconstruction_Loss':reconstruction_loss.detach(), 'KLD':-kld_loss.detach()}
 
+
+class FFNN(nn.module):
+    def __init__(self, input_size = 32, output_size = 2):
+        super(FFNN, self).__init__()
+        self.input_size = input_size
+        self.output_size = output_size
+
+        self.module = nn.Sequential(
+            nn.Linear(self.input_size, self.input_size//2),
+            nn.ReLU(),
+            nn.Linear(self.input_size//2, self.input_size//4),
+            nn.ReLU(),
+            nn.Linear(self.input_size//4, self.input_size//8),
+            nn.ReLU(),
+            nn.Linear(self.input_size//8, self.output_size),
+        )
+    
+    def forward(self, x):
+        return self.module(x)
+
+class VI(nn.module):
+    def __init__(self, input_size = 32, output_size = 2):
+        super(VI, self).__init__()
+        self.input_size = input_size
+        self.output_size = output_size
+
+        self.vae = LSTMVAE(input_size = self.input_size, output_size = self.output_size)
+        self.vae.load_state_dict(torch.load('model.pth'))
+
+        for param in self.vae.parameters():
+            param.requires_grad = False
+
+        self.ffnn = FFNN(input_size = self.input_size, output_size = self.output_size)
+
+    def forward(self, x):
+        hidden, cell = self.vae.encode(x)
+        mu = self.vae.mean(hidden)
+        logvar = self.vae.logvar(hidden)
+        z = self.vae.reparameterize(mu, logvar)
+
+        beta = self.ffnn(z)
+
+        return beta
+

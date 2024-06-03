@@ -147,30 +147,32 @@ def generate_sinusoidal(t0 = 0, tFin = 30, tStep = 0.01, suffix='train', n_itera
     #indexes = (time_space % 0.5 == 0)
     result = [0] * n_iterations
 
-    a = np.random.normal(1, 0.1)
-    b = np.random.normal(1, 0.1)
+    for i in range(n_iterations):
+        a = np.random.normal(5, 1.5)
+        b = np.random.normal(1, 0.3)
 
-    y = np.sin(2*np.pi/b * time_space)
+        y = a * np.sin(2*np.pi/b * time_space)
+        df = pd.DataFrame({'x': time_space, 'y': y, 'a' : np.repeat(a, len(time_space)), 'b' : np.repeat(a, len(time_space))})
 
-    df = pd.DataFrame({'x': time_space, 'y': y})
-
-    def preprocess(data, suffix = 'train', sequence_length = 30):
-        for i in range(len(data) - sequence_length):
-            if (i+sequence_length) > len(data):
+        for j in range(len(df) - sequence_length):
+            if (i+sequence_length) > len(df):
                 indexes = list(range(i, len(data)))
             else:
                 indexes = list(range(i, i + sequence_length))
-            x = data['x'][indexes]
-            y = data['y'][indexes]
+            x = df['x'][indexes]
+            y = df['y'][indexes]
 
-            with open(f'data/{suffix}/processed/sinusoidal_{i}.pkl', 'wb') as f:
+            with open(f'data/{suffix}/processed/sinusoidal_{i}_{j}.pkl', 'wb') as f:
                 pickle.dump({'x' : x, 'y' : y}, f)
-                            
-    preprocess(df, suffix=suffix, sequence_length=sequence_length)
+                                
+        #preprocess(df, suffix=suffix, sequence_length=sequence_length)
 
 
 if __name__ == "__main__":    
-    generate_sinusoidal(tFin=50)
+    generate_sinusoidal(tFin=30, tStep = 0.1, n_iterations = 100, suffix='train', sequence_length = 10, as_pickle=False)
+    generate_sinusoidal(tFin=30, tStep = 0.1, n_iterations = 20, suffix='val', sequence_length = 10, as_pickle=False)
+    generate_sinusoidal(tFin=30, tStep = 0.1, n_iterations = 20, suffix='test', sequence_length = 10, as_pickle=False)
+
     #simulate_process(t0 = 0, tFin = 30, tStep = 0.01, suffix='train', n_iterations = 1000, sequence_length = 30, as_pickle=False)
     #simulate_process(t0 = 0, tFin = 30, tStep = 0.01, suffix='val', n_iterations = 200, sequence_length = 30)
     

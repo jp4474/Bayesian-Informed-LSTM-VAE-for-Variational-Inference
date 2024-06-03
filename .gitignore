@@ -1,2 +1,10 @@
 data
 *.pkl
+*.out
+*.pyc
+*.log
+*.csv
+*.pth
+*.png
+reconstruction
+*.err_out
