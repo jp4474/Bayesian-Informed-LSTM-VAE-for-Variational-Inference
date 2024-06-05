@@ -82,7 +82,7 @@ class LSTMVAE(nn.Module):
         return mu + eps*std
     
     def forward(self, x):
-        batch_size, seq_len, _ = x.size()
+        batch_size, seq_len, _ = x.data.size()
         hidden, cell = self.encode(x)
 
         mu = self.mean(hidden)
@@ -90,7 +90,7 @@ class LSTMVAE(nn.Module):
         z = self.reparameterize(mu, logvar)
 
         h_ = self.decoder_input(z)
-
+        
         z = z.repeat(1, seq_len, 1)
         z = z.view(batch_size, seq_len, self.latent_size)
 
@@ -98,70 +98,34 @@ class LSTMVAE(nn.Module):
         hidden = (h_.contiguous(), h_.contiguous())
         x_hat, _ = self.decode(z, hidden)
 
-        # calculate vae loss
-        losses = self.loss_function(x_hat, x, mu, logvar)
-        m_loss, recon_loss, kld_loss = (
-            losses["loss"],
-            losses["Reconstruction_Loss"],
-            losses["KLD"],
-        )
-
-        return m_loss, x_hat, (recon_loss, kld_loss)
+        return x_hat, z, mu, logvar
     
-    def loss_function(self, recon_x, x, mu, logvar):
-        reconstruction_loss = F.mse_loss(recon_x, x)
-        # see Appendix B from VAE paper:
-        # Kingma and Welling. Auto-Encoding Variational Bayes. ICLR, 2014
-        # https://arxiv.org/abs/1312.6114
-        # 0.5 * sum(1 + log(sigma^2) - mu^2 - sigma^2)
-        kld_weight = 0.00025 # Account for the minibatch samples from the dataset
-        #kld_loss = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-        kld_loss = torch.mean(-0.5 * torch.sum(1 + logvar - mu ** 2 - logvar.exp(), dim = 1), dim = 0)
 
-        loss = reconstruction_loss + kld_weight * kld_loss
-        return {'loss': loss, 'Reconstruction_Loss':reconstruction_loss.detach(), 'KLD':-kld_loss.detach()}
-
-
-class FFNN(nn.module):
-    def __init__(self, input_size = 32, output_size = 2):
-        super(FFNN, self).__init__()
-        self.input_size = input_size
-        self.output_size = output_size
-
-        self.module = nn.Sequential(
-            nn.Linear(self.input_size, self.input_size//2),
-            nn.ReLU(),
-            nn.Linear(self.input_size//2, self.input_size//4),
-            nn.ReLU(),
-            nn.Linear(self.input_size//4, self.input_size//8),
-            nn.ReLU(),
-            nn.Linear(self.input_size//8, self.output_size),
-        )
-    
-    def forward(self, x):
-        return self.module(x)
-
-class VI(nn.module):
-    def __init__(self, input_size = 32, output_size = 2):
+class VI(nn.Module):
+    def __init__(self, input_size, hidden_size, latent_size):
         super(VI, self).__init__()
         self.input_size = input_size
-        self.output_size = output_size
+        self.hidden_size = hidden_size
+        self.latent_size = latent_size
 
-        self.vae = LSTMVAE(input_size = self.input_size, output_size = self.output_size)
-        self.vae.load_state_dict(torch.load('model.pth'))
-
-        for param in self.vae.parameters():
-            param.requires_grad = False
-
-        self.ffnn = FFNN(input_size = self.input_size, output_size = self.output_size)
+        self.vae = LSTMVAE(input_size = self.input_size, 
+                           hidden_size = self.hidden_size, 
+                           latent_size = self.latent_size)
+        
+        self.ffnn = nn.Sequential(
+            nn.Conv1d(10, 1, 1),
+            nn.Linear(self.latent_size, 16),
+            nn.ReLU(),
+            nn.Linear(16,8),
+            nn.ReLU(),
+            nn.Linear(8, 4),
+            nn.ReLU(),
+            nn.Linear(4, 2)
+        )
 
     def forward(self, x):
-        hidden, cell = self.vae.encode(x)
-        mu = self.vae.mean(hidden)
-        logvar = self.vae.logvar(hidden)
-        z = self.vae.reparameterize(mu, logvar)
-
-        beta = self.ffnn(z)
-
-        return beta
+        y_hat, z, mu, logvar = self.vae(x)
+        x_hat = self.ffnn(z)
+        x_hat = x_hat.squeeze(1)
+        return x_hat, y_hat, mu, logvar
 

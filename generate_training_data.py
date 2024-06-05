@@ -152,48 +152,25 @@ def generate_sinusoidal(t0 = 0, tFin = 30, tStep = 0.01, suffix='train', n_itera
         b = np.random.normal(1, 0.3)
 
         y = a * np.sin(2*np.pi/b * time_space)
-        df = pd.DataFrame({'x': time_space, 'y': y, 'a' : np.repeat(a, len(time_space)), 'b' : np.repeat(a, len(time_space))})
 
-        for j in range(len(df) - sequence_length):
-            if (i+sequence_length) > len(df):
-                indexes = list(range(i, len(data)))
+        x = [a,b]
+
+        # with open(f'data/{suffix}/processed/sinusoidal_{i}_{j}.pkl', 'wb') as f:
+        #     pickle.dump({'x' : x, 'y' : y}, f)
+
+        for j in range(len(time_space) - sequence_length):
+            if (j+sequence_length) > len(time_space):
+                y_output = y[j:len(time_space)]
             else:
-                indexes = list(range(i, i + sequence_length))
-            x = df['x'][indexes]
-            y = df['y'][indexes]
+                y_output = y[j:j+sequence_length]
 
             with open(f'data/{suffix}/processed/sinusoidal_{i}_{j}.pkl', 'wb') as f:
-                pickle.dump({'x' : x, 'y' : y}, f)
+                pickle.dump({'x' : x, 'y' : y_output}, f)
                                 
-        #preprocess(df, suffix=suffix, sequence_length=sequence_length)
+        # preprocess(df, suffix=suffix, sequence_length=sequence_length)
 
 
 if __name__ == "__main__":    
     generate_sinusoidal(tFin=30, tStep = 0.1, n_iterations = 100, suffix='train', sequence_length = 10, as_pickle=False)
     generate_sinusoidal(tFin=30, tStep = 0.1, n_iterations = 20, suffix='val', sequence_length = 10, as_pickle=False)
     generate_sinusoidal(tFin=30, tStep = 0.1, n_iterations = 20, suffix='test', sequence_length = 10, as_pickle=False)
-
-    #simulate_process(t0 = 0, tFin = 30, tStep = 0.01, suffix='train', n_iterations = 1000, sequence_length = 30, as_pickle=False)
-    #simulate_process(t0 = 0, tFin = 30, tStep = 0.01, suffix='val', n_iterations = 200, sequence_length = 30)
-    
-    # df_1, df_2 = parse_as_dataframe()
-
-    # # Standardize by row
-    # df_standardized = df_2.drop('time', axis=1)
-    # df_standardized = df_1.iloc[:, :-1].apply(lambda x: (x - np.mean(x)) / np.std(x), axis=1)
-
-    # # Now you can plot the standardized data
-    # plt.plot(df_1['time'], df_standardized)
-    # plt.xlabel('Time')
-    # plt.ylabel('CAR positive GCB cells in WT')
-    # plt.title('CAR positive GCB cells in WT')
-    # plt.show()
-
-    # df = generate_sinusoidal(tFin=50)
-
-    # plt.plot(df['x'], df['y'])
-    # plt.xlabel('Time')
-    # plt.ylabel('y')
-    # plt.title('Sinusoidal function')
-    # plt.show()
-
