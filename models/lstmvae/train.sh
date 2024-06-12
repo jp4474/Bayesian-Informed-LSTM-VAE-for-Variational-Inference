@@ -11,6 +11,6 @@
 module load anaconda
  
 #Command to execute Python program
-python main.py
+python models/lstmvae/train_vae.py
  
 #End of script

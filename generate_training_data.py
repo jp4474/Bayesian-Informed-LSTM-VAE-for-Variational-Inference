@@ -171,6 +171,6 @@ def generate_sinusoidal(t0 = 0, tFin = 30, tStep = 0.01, suffix='train', n_itera
 
 
 if __name__ == "__main__":    
-    generate_sinusoidal(tFin=30, tStep = 0.1, n_iterations = 100, suffix='train', sequence_length = 10, as_pickle=False)
-    generate_sinusoidal(tFin=30, tStep = 0.1, n_iterations = 20, suffix='val', sequence_length = 10, as_pickle=False)
-    generate_sinusoidal(tFin=30, tStep = 0.1, n_iterations = 20, suffix='test', sequence_length = 10, as_pickle=False)
+    #generate_sinusoidal(tFin=30, tStep = 0.1, n_iterations = 100, suffix='train', sequence_length = 30, as_pickle=False)
+    #generate_sinusoidal(tFin=30, tStep = 0.1, n_iterations = 20, suffix='val', sequence_length = 30, as_pickle=False)
+    generate_sinusoidal(tFin=30, tStep = 0.1, n_iterations = 1, suffix='test', sequence_length = 30, as_pickle=False)

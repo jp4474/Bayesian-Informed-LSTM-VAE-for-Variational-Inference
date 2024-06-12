@@ -88,7 +88,7 @@ class LSTMVAE(nn.Module):
         mu = self.mean(hidden)
         logvar = self.logvar(hidden)
         z = self.reparameterize(mu, logvar)
-
+        z_0 = z
         h_ = self.decoder_input(z)
         
         z = z.repeat(1, seq_len, 1)
@@ -98,34 +98,5 @@ class LSTMVAE(nn.Module):
         hidden = (h_.contiguous(), h_.contiguous())
         x_hat, _ = self.decode(z, hidden)
 
-        return x_hat, z, mu, logvar
+        return x_hat, z_0, mu, logvar
     
-
-class VI(nn.Module):
-    def __init__(self, input_size, hidden_size, latent_size):
-        super(VI, self).__init__()
-        self.input_size = input_size
-        self.hidden_size = hidden_size
-        self.latent_size = latent_size
-
-        self.vae = LSTMVAE(input_size = self.input_size, 
-                           hidden_size = self.hidden_size, 
-                           latent_size = self.latent_size)
-        
-        self.ffnn = nn.Sequential(
-            nn.Conv1d(10, 1, 1),
-            nn.Linear(self.latent_size, 16),
-            nn.ReLU(),
-            nn.Linear(16,8),
-            nn.ReLU(),
-            nn.Linear(8, 4),
-            nn.ReLU(),
-            nn.Linear(4, 2)
-        )
-
-    def forward(self, x):
-        y_hat, z, mu, logvar = self.vae(x)
-        x_hat = self.ffnn(z)
-        x_hat = x_hat.squeeze(1)
-        return x_hat, y_hat, mu, logvar
-

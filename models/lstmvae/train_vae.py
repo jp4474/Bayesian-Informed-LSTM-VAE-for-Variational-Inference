@@ -1,4 +1,4 @@
-from model import VI
+from models/lstmvae/model import LSTMVAE
 import torch
 import torch.optim as optim
 import torch.nn as nn
@@ -12,10 +12,8 @@ import pickle
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence, pad_sequence
-import logging
 import matplotlib.pyplot as plt
 
-logging.basicConfig(level=logging.INFO)
 class MultiSeriesODEDataset(Dataset):
     def __init__(self, root, suffix = 'train'):
         self.root = root
@@ -70,6 +68,8 @@ def train_vae(model, train_loader, test_loader, learning_rate=0.001, epochs=1000
     batch_train_loss = []
     batch_val_loss = []
     kld_weight = 0.00025
+    recon_weight = 1.0
+
     ## training
     for epoch in range(epochs):
         model.train()
@@ -79,7 +79,7 @@ def train_vae(model, train_loader, test_loader, learning_rate=0.001, epochs=1000
             x, y = batch
             x, y = x.to(device), y.to(device)
             
-            x_hat, y_hat, mu, logvar = model(y)
+            y_hat, z, mu, logvar = model(y)
 
             #x_hat = pad_packed_sequence(x_hat, batch_first=True)
 
@@ -87,13 +87,13 @@ def train_vae(model, train_loader, test_loader, learning_rate=0.001, epochs=1000
             recon_loss = F.mse_loss(y_hat, y)
 
             # Compute parameter reconstruction loss
-            param_loss = F.mse_loss(x_hat, x)
+            # param_loss = F.mse_loss(x_hat, x)
 
             # Compute KL divergence
             kl_div_loss = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
 
             # Total loss
-            total_loss = recon_loss + param_loss + kld_weight*kl_div_loss
+            total_loss = recon_weight*recon_loss + kld_weight*kl_div_loss
 
             # Backward and optimize
             optimizer.zero_grad()
@@ -102,71 +102,76 @@ def train_vae(model, train_loader, test_loader, learning_rate=0.001, epochs=1000
 
             train_loss += total_loss.item()
 
-        batch_train_loss.append(np.mean(train_loss))
-        print("Train Loss : {}".format(np.mean(train_loss)))
+        print("Train Loss : {}".format(train_loss/len(train_loader)))
 
         model.eval()
-        eval_loss = 0
+        eval_loss = 0.0
 
         with torch.no_grad():
             for i, batch_data in enumerate(test_loader):
                 x, y = batch
                 x, y = x.to(device), y.to(device)
                 
-                x_hat, y_hat, mu, logvar = model(y)
+                y_hat, z, mu, logvar = model(y)
 
-                # Compute parameter reconstruction loss
-                param_loss = F.mse_loss(x_hat, x)
+                recon_loss = F.mse_loss(y_hat, y)
 
                 # Compute KL divergence
                 kl_div_loss = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
 
                 # Total loss
-                total_loss = recon_loss + param_loss + kld_weight*kl_div_loss
+                total_loss = recon_weight*recon_loss + kld_weight*kl_div_loss
                 eval_loss += total_loss.item()
 
-            batch_val_loss.append(np.mean(eval_loss))
-            print("Validation Loss : {}".format(np.mean(eval_loss)))
+            print("Validation Loss : {}".format(eval_loss/len(test_loader)))
 
-    return model, batch_train_loss, batch_val_loss
+    return model
 
 if __name__ == "__main__":
 
     print('Data loading initialized.')
     train_ds = SinusoidalDataset(root = 'data', suffix = 'train/processed')
-    train_dataloader = DataLoader(train_ds, batch_size=64, shuffle=False, collate_fn=pad_collate)
+    train_dataloader = DataLoader(train_ds, batch_size=64, shuffle=True, collate_fn=pad_collate)
 
     val_ds = SinusoidalDataset(root = 'data', suffix = 'val/processed')
-    val_dataloader = DataLoader(val_ds, batch_size=64, shuffle=False, collate_fn=pad_collate)
+    val_dataloader = DataLoader(val_ds, batch_size=64, shuffle=True, collate_fn=pad_collate)
 
     test_ds = SinusoidalDataset(root = 'data', suffix = 'test/processed')
-    test_dataloader = DataLoader(test_ds, batch_size=64, shuffle=False, collate_fn=pad_collate)
+    test_dataloader = DataLoader(test_ds, batch_size=1, shuffle=True, collate_fn=pad_collate)
 
     print('Data loading completed.')
     print('Model loading initialized.')
     input_size = 1
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    #device = 'mps' #if torch.mps.is_available() else device
-    model = VI(input_size=input_size, hidden_size=64, latent_size=32).to(device)
+    model = LSTMVAE(input_size=input_size, hidden_size=64, latent_size=32).to(device)
     print('Model loading completed.')
     print('Training initialized.')
     model, train_loss, val_loss = train_vae(model, train_dataloader, val_dataloader, learning_rate=0.001, epochs = 100, device = device)
+    print('Losses : ', train_loss, val_loss)
     print('Training completed.')
     torch.save(model.state_dict(), 'model.pth')
 
     if not os.path.exists('reconstruction'):
         os.makedirs('reconstruction')
 
-    model = VI(input_size=1, hidden_size=64, latent_size=32)
+    model = LSTMVAE(input_size=1, hidden_size=64, latent_size=32)
     model.load_state_dict(torch.load('model.pth', map_location='cpu'))
 
+    pred_loss = []
+
+    model.eval()
     for i, batch in enumerate(test_dataloader):
         x, y = batch
-        x_hat, y_hat, mu, logvar = model(y)
-        print(f'x: {x} \n x_hat: {x_hat}')
+        #y = y.squeeze(0)
+        y_hat, z, mu, logvar = model(y)
+
+        # Compute reconstruction loss
+        recon_loss = F.mse_loss(y_hat, y)
+        pred_loss.append(recon_loss.item())
+
         plt.figure(figsize=(10, 5))
         plt.plot(y[0].squeeze().numpy())
-        plt.plot(model(y)[1][0].detach().numpy())
-        plt.savefig(f'reconstruction/reconstruction_{i}.png')
+        plt.plot(y_hat[0].squeeze().detach().numpy())
+        plt.savefig(f'reconstruction/reconstruction_{i}_{recon_loss}.png')
 
-    
+    print("Prediction Loss : {}".format(np.mean(pred_loss)))
