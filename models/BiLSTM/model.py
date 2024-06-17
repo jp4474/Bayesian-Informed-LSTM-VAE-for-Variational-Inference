@@ -50,7 +50,7 @@ class lstm_decoder(nn.Module):
     
 class BiLSTMVAE(nn.Module):
     def __init__(self, input_size, hidden_size, latent_size, num_layers = 1):
-        super(LSTMVAE, self).__init__()
+        super(BiLSTMVAE, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.latent_size = latent_size

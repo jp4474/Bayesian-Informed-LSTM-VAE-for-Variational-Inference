@@ -82,7 +82,7 @@ class LSTMVAE(nn.Module):
         return mu + eps*std
     
     def forward(self, x):
-        batch_size, seq_len, _ = x.data.size()
+        batch_size, seq_len, _ = x.shape
         hidden, cell = self.encode(x)
 
         mu = self.mean(hidden)

@@ -1,4 +1,4 @@
-from model import LSTMVAE
+from model import BiLSTMVAE
 import os
 import torch
 import torch.nn.functional as F
@@ -8,6 +8,7 @@ import pickle
 from torch.utils.data import DataLoader, Dataset
 from torch.nn.utils.rnn import pad_sequence
 import matplotlib.pyplot as plt
+
 
 class MultiSeriesODEDataset(Dataset):
     def __init__(self, root, suffix = 'train'):
@@ -39,10 +40,8 @@ class SinusoidalDataset(Dataset):
         file_name = self.data_files[idx]
         with open(file_name, 'rb') as f:
             data = pickle.load(f)
-            parameters = data['parameters']
+            parameters = data['x']
             observations = data['y']
-        
-        parameters = list(parameters.values())
         parameters = np.array(parameters)
         observations = np.array(observations)
 
@@ -51,14 +50,11 @@ class SinusoidalDataset(Dataset):
         return parameters_tensor, observations_tensor
 
 def pad_collate(batch):
-    (xx, yy) = zip(*batch)
-    x_lens = [len(x) for x in xx]
-    y_lens = [len(y) for y in yy]
-
-    xx_pad = pad_sequence(xx, batch_first=True, padding_value=0)
-    yy_pad = pad_sequence(yy, batch_first=True, padding_value=0)
-    
-    return xx_pad, yy_pad
+    data = [item[1].unsqueeze(1) for item in batch]
+    data = pad_sequence(data, batch_first=True)
+    parameters = [item[0] for item in batch]
+    parameters = pad_sequence(parameters, batch_first=True)
+    return parameters, data
 
 def train_vae(model, train_loader, test_loader, learning_rate=0.001, epochs=1000, device = 'cpu'):
     # optimizer
@@ -78,8 +74,6 @@ def train_vae(model, train_loader, test_loader, learning_rate=0.001, epochs=1000
         for i, batch in enumerate(train_loader):
             x, y = batch
             x, y = x.to(device), y.to(device)
-
-            y = y.mT
             
             y_hat, z, mu, logvar = model(y)
 
@@ -113,8 +107,6 @@ def train_vae(model, train_loader, test_loader, learning_rate=0.001, epochs=1000
             for i, batch_data in enumerate(test_loader):
                 x, y = batch
                 x, y = x.to(device), y.to(device)
-
-                y = y.mT
                 
                 y_hat, z, mu, logvar = model(y)
 
@@ -132,41 +124,40 @@ def train_vae(model, train_loader, test_loader, learning_rate=0.001, epochs=1000
     return model
 
 if __name__ == "__main__":
-    BATCH_SIZE = 64
-    INPUT_SIZE = 2
-    HIDDEN_SIZE = 64
-    LATENT_SIZE = 2
+
     print('Data loading initialized.')
     train_ds = SinusoidalDataset(root = 'data', suffix = 'train/processed')
-    train_dataloader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True, collate_fn=pad_collate)
+    train_dataloader = DataLoader(train_ds, batch_size=64, shuffle=True, collate_fn=pad_collate)
 
     val_ds = SinusoidalDataset(root = 'data', suffix = 'val/processed')
-    val_dataloader = DataLoader(val_ds, batch_size=BATCH_SIZE, shuffle=True, collate_fn=pad_collate)
+    val_dataloader = DataLoader(val_ds, batch_size=64, shuffle=True, collate_fn=pad_collate)
 
     test_ds = SinusoidalDataset(root = 'data', suffix = 'test/processed')
-    test_dataloader = DataLoader(test_ds, batch_size=BATCH_SIZE, shuffle=True, collate_fn=pad_collate)
+    test_dataloader = DataLoader(test_ds, batch_size=1, shuffle=True, collate_fn=pad_collate)
 
     print('Data loading completed.')
     print('Model loading initialized.')
+    input_size = 1
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    model = LSTMVAE(input_size=INPUT_SIZE, hidden_size=HIDDEN_SIZE, latent_size=LATENT_SIZE).to(device)
+    model = BiLSTMVAE(input_size=input_size, hidden_size=64, latent_size=32).to(device)
     print('Model loading completed.')
     print('Training initialized.')
-    model = train_vae(model, train_dataloader, train_dataloader, learning_rate=0.001, epochs = 100, device = device)
+    model = train_vae(model, train_dataloader, val_dataloader, learning_rate=0.001, epochs = 100, device = device)
     print('Training completed.')
-    torch.save(model.state_dict(), f'LV_EQUATION_LSTM_{HIDDEN_SIZE}_{LATENT_SIZE}.pth')
+    torch.save(model.state_dict(), 'model.pth')
 
     if not os.path.exists('reconstruction'):
         os.makedirs('reconstruction')
+
+    model = BiLSTMVAE(input_size=1, hidden_size=64, latent_size=32)
+    model.load_state_dict(torch.load('model.pth', map_location='cpu'))
 
     pred_loss = []
 
     model.eval()
     for i, batch in enumerate(test_dataloader):
         x, y = batch
-        x, y = x.to(device), y.to(device)
-        
-        y = y.mT
+        #y = y.squeeze(0)
         y_hat, z, mu, logvar = model(y)
 
         # Compute reconstruction loss

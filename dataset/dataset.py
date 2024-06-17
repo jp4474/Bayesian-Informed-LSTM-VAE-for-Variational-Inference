@@ -4,7 +4,7 @@ import pickle
 from torch.utils.data import Dataset
 import torch
 import logging
-from torch.nn.utils.rnn import pad_packed_sequence
+from torch.nn.utils.rnn import pad_sequence
 import numpy as np
 
 class MultiSeriesODEDataset(Dataset):
