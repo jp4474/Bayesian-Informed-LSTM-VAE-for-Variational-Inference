@@ -70,23 +70,28 @@ if __name__ == "__main__":
     DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     model = LSTMVAE(input_size=INPUT_SIZE, hidden_size=HIDDEN_SIZE, latent_size=LATENT_SIZE).to(DEVICE)
-    model.load_state_dict(torch.load('LV_EQUATION_LSTM.pt', map_location=DEVICE))
+    model.load_state_dict(torch.load(MODEL_NAME, map_location=DEVICE))
     model.eval()
 
     save_latent_space(model, MODEL_NAME, 'train', BATCH_SIZE, LATENT_SIZE, DEVICE)
+    save_latent_space(model, MODEL_NAME, 'val', BATCH_SIZE, LATENT_SIZE, DEVICE)
     save_latent_space(model, MODEL_NAME, 'test', BATCH_SIZE, LATENT_SIZE, DEVICE)
 
-    train = pd.read_csv(f'data/{MODEL_NAME}/latent_train.csv')
-    test = pd.read_csv(f'data/{MODEL_NAME}/latent_test.csv')
+    train = pd.read_csv(f'data/train/{MODEL_NAME}/latent_train.csv')
+    val = pd.read_csv(f'data/val/{MODEL_NAME}/latent_val.csv')
+    test = pd.read_csv(f'data/test/{MODEL_NAME}/latent_test.csv')
 
     trans = umap.UMAP(n_neighbors=5, random_state=42).fit(train)
+    val_embedding = trans.transform(val)
     test_embedding = trans.transform(test)
 
     # Define the colors of the rainbow
     #colors = ['red', 'red', 'red' , 'red' ,'red', 'blue', 'red', 'red', 'blue', 'green']
 
     plt.figure(figsize=(10, 10))
-    plt.scatter(trans.embedding_[:, 0], trans.embedding_[:, 1], s=2, c='yellow')
-    plt.scatter(test_embedding[:, 0], test_embedding[:, 1], s=10, c='red')
+    plt.scatter(trans.embedding_[:, 0], trans.embedding_[:, 1], s=2, c='yellow', label='train')
+    plt.scatter(val_embedding[:, 0], val_embedding[:, 1], s=5, c='blue', label='val')
+    plt.scatter(test_embedding[:, 0], test_embedding[:, 1], s=10, c='red', label='test')
+    plt.legend()
     plt.title('Embedding of Latent Vectors', fontsize=24)
     plt.savefig(f'reconstruction/{MODEL_NAME}/latent_space.png')

@@ -18,6 +18,24 @@ class RMSELoss(nn.Module):
     def forward(self,yhat, y):
         loss = torch.sqrt(self.mse(yhat,y) + self.eps)
         return loss
+
+class RidgeRegression(nn.Module):
+    def __init__(self, input_dim, output_dim, lambda_=1):
+        super(RidgeRegression, self).__init__()
+        self.linear = nn.Linear(input_dim, output_dim)
+        self.lambda_ = lambda_
+
+    def forward(self, x):
+        output = self.linear(x)
+        return output
+
+    def loss(self, pred, target):
+        mse_loss = nn.MSELoss()(pred, target)
+        l2_reg = 0.0
+        for param in self.parameters():
+            l2_reg += torch.norm(param)
+        loss = mse_loss + self.lambda_ * l2_reg
+        return loss
     
 class RegressionModel(nn.Module):
     def __init__(self, input_size):
@@ -67,7 +85,7 @@ def train_vi(model, reg_model, epochs, train_dataloader, val_dataloader, save_pa
     model.eval()
 
     optimizer = optim.Adam(reg_model.parameters(), lr=0.0001)    
-    criterion = RMSELoss()
+    criterion = nn.MSELoss()
     #criterion = nn.GaussianNLLLoss()
     #criterion = nn.L1Loss()
     best_loss = 999999.
@@ -82,7 +100,7 @@ def train_vi(model, reg_model, epochs, train_dataloader, val_dataloader, save_pa
 
             y_hat, z, mu, logvar = model(y)
             x_hat = reg_model(z)
-            loss = criterion(x_hat, x)
+            loss = reg_model.loss(x_hat, x)
 
             optimizer.zero_grad()
             loss.backward()
@@ -100,7 +118,7 @@ def train_vi(model, reg_model, epochs, train_dataloader, val_dataloader, save_pa
                 y = y.mT
                 y_hat, z, mu, logvar = model(y)
                 x_hat = reg_model(z)
-                loss = criterion(x_hat, x)
+                loss = reg_model.loss(x_hat, x)
 
                 val_loss += loss.item()
 
@@ -130,7 +148,7 @@ if __name__ == "__main__":
     HIDDEN_SIZE = args.hidden_size
     LATENT_SIZE = args.latent_size
     MODEL_NAME = str(args.model_name) + '_' + str(HIDDEN_SIZE) + '_' + str(LATENT_SIZE) + '.pt'
-    REG_MODEL_NAME = 'LV_EQUATION_REG_RMSE' + str(HIDDEN_SIZE) + '_' + str(LATENT_SIZE) + '.pt'
+    REG_MODEL_NAME = 'LV_EQUATION_RIDGE_' + str(HIDDEN_SIZE) + '_' + str(LATENT_SIZE) + '.pt'
 
     print('Data loading initialized.')
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -147,11 +165,11 @@ if __name__ == "__main__":
     model.load_state_dict(torch.load(MODEL_NAME, map_location=device))
 
     # Uncomment the following lines to train the regression model
-    reg_model = RegressionModel(input_size=LATENT_SIZE)
+    reg_model = RidgeRegression(input_dim=LATENT_SIZE, output_dim=4)
     reg_model.to(device)
     reg_model = train_vi(model, reg_model, epochs = 1000, save_path = REG_MODEL_NAME, train_dataloader=train_dataloader, val_dataloader=val_dataloader, device=device)
     
-    reg_model = RegressionModel(input_size=LATENT_SIZE)
+    reg_model = RidgeRegression(input_dim=LATENT_SIZE, output_dim=4)
     reg_model.to(device)
     reg_model.load_state_dict(torch.load(REG_MODEL_NAME, map_location=device))
 

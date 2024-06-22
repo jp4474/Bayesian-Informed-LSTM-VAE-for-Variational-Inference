@@ -23,7 +23,7 @@ for h in "${hidden_size[@]}"; do
   for l in "${latent_size[@]}"; do
     case $SLURM_ARRAY_TASK_ID in
         $counter)
-        ARGS="--hidden_size $h --latent_size $l --model_name LV_EQUATION_LSTM_NORM"
+        ARGS="--hidden_size $h --latent_size $l --model_name LV_EQUATION_LSTM"
         ;;
     esac
     let counter++
