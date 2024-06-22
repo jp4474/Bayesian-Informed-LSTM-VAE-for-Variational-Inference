@@ -23,15 +23,18 @@ for h in "${hidden_size[@]}"; do
   for l in "${latent_size[@]}"; do
     case $SLURM_ARRAY_TASK_ID in
         $counter)
-        ARGS="--hidden_size $h --latent_size $l"
+        ARGS="--hidden_size $h --latent_size $l --model_name LV_EQUATION_LSTM_NORM"
         ;;
     esac
     let counter++
   done
 done
 
+# Start the timer
+start=$(date +%s)
+
 #Command to execute Python program
-python models/lstmvae/vi.py $ARGS
+python models/lstmvae/visualize.py $ARGS
 
 # End the timer
 end=$(date +%s)

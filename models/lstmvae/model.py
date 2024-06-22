@@ -76,11 +76,6 @@ class LSTMVAE(nn.Module):
         x_hat, (hidden, cell) = self.decoder(z, hidden)
         return x_hat, (hidden, cell)
     
-    def reparameterize(self, mu, logvar):
-        std = torch.exp(0.5*logvar)
-        eps = torch.randn_like(std)
-        return mu + eps*std
-    
     def forward(self, x):
         batch_size, seq_len, _ = x.shape
         hidden, cell = self.encode(x)
@@ -88,9 +83,9 @@ class LSTMVAE(nn.Module):
         mu = self.mean(hidden)
         logvar = self.logvar(hidden)
         z = self.reparameterize(mu, logvar)
-        z_0 = z
         h_ = self.decoder_input(z)
         
+        z_copy = z
         z = z.repeat(1, seq_len, 1)
         z = z.view(batch_size, seq_len, self.latent_size)
 
@@ -98,5 +93,5 @@ class LSTMVAE(nn.Module):
         hidden = (h_.contiguous(), h_.contiguous())
         x_hat, _ = self.decode(z, hidden)
 
-        return x_hat, z_0, mu, logvar
+        return x_hat, z_copy, mu, logvar
     

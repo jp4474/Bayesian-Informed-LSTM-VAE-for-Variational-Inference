@@ -8,3 +8,6 @@ data
 *.png
 reconstruction
 *.err_out
+lstmvae_*
+BiLSTMVAE
+*.pt

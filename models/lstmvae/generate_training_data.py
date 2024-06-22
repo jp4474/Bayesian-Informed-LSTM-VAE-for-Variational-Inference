@@ -171,11 +171,11 @@ import matplotlib.pyplot as plt
 
 
 
-def ode_system(X, t, alpha, beta, delta, gamma):
+def ode_system(X, alpha, beta, delta, gamma):
     # Lotka-Volterra equation
     x, y = X
     dotx = x * (alpha - beta * y)
-    doty = y * (-delta + gamma * x)
+    doty = y * (-gamma + delta * x)
     return np.array([dotx, doty])
 
 def simulate_process(sequence_length = 30, suffix='train', n_iterations = 1000):
@@ -188,13 +188,10 @@ def simulate_process(sequence_length = 30, suffix='train', n_iterations = 1000):
     if not os.path.exists(f'data/{suffix}/processed'):
         os.makedirs(f'data/{suffix}/processed')
 
-    result = [0] * n_iterations
-
-    x0 = 4.
-    y0 = 2.
-    Nt = 1000
-    tmax = 30.
-    time_space = np.linspace(0.,tmax, Nt)
+    x0 = 30.
+    y0 = 4.
+    tmax = 20.
+    time_space = np.arange(0, tmax, 0.01)
     X0 = [x0, y0]
 
     for i in range(n_iterations):
@@ -204,16 +201,37 @@ def simulate_process(sequence_length = 30, suffix='train', n_iterations = 1000):
         delta = np.random.uniform(0.01, 0.1)  # Predator reproduction rate
 
         res = odeint(ode_system, X0, time_space, args = (alpha, beta, delta, gamma))
+
+        # Extract the individual trajectories.
         x, y = res.T
 
-        for j in range(len(time_space) - sequence_length):
-            if (j+sequence_length) > len(time_space):
-                y_output = [x[j:len(time_space)], y[j:len(time_space)]]
-            else:
-                y_output = [x[j:j+sequence_length], y[j:j+sequence_length]]
+        # Determine the size of the array
+        size = len(x)
+        # Create an array of zeros
+        index = np.zeros(size)
+        # Set every 50th element to 1
+        index[::10] = 1
 
-            with open(f'data/{suffix}/processed/simulated_data_{i}_{j}.pkl', 'wb') as f:
+        x = x[index.astype(bool)]
+        y = y[index.astype(bool)]
+
+        if sequence_length > 0 :
+            for j in range(len(x) - sequence_length):
+                if (j+sequence_length) > len(x):
+                    y_output = [x[j:len(x)], y[j:len(x)]]
+                else:
+                    y_output = [x[j:j+sequence_length], y[j:j+sequence_length]]
+
+                with open(f'data/{suffix}/processed/simulated_data_{i}_{j}.pkl', 'wb') as f:
+                    pickle.dump({'parameters' : {'alpha' : alpha, 'beta' : beta, 'delta' : delta, 'gamma' : gamma}, 
+                                'y' : y_output}, f)
+        else:
+            with open(f'data/{suffix}/processed/simulated_data_{i}.pkl', 'wb') as f:
                 pickle.dump({'parameters' : {'alpha' : alpha, 'beta' : beta, 'delta' : delta, 'gamma' : gamma}, 
-                            'y' : y_output}, f)
+                            'y' : [x,y]}, f)
+
+
 if __name__ == "__main__":    
-    simulate_process(suffix='train', n_iterations = 1)
+    simulate_process(sequence_length = -1, suffix='train', n_iterations = 8000) # 800 * 30 = 24000
+    simulate_process(sequence_length = -1, suffix='val', n_iterations = 2000) # 200 * 30 = 6000
+    simulate_process(sequence_length = -1, suffix='test', n_iterations = 10) # 1 * 30 = 30
