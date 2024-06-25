@@ -7,7 +7,7 @@
 #SBATCH --gres=gpu:1             # Request 1 gpu (Up to 2 gpus per GPU node)
 #SBATCH -c 2                      # The number of cpu cores to use
 #SBATCH --mem-per-cpu=16gb         # The memory the job will use per cpu core
-#SBATCH --array=1-20               # Creates an array job with indices from 1 to 3
+##SBATCH --array=1-20               # Creates an array job with indices from 1 to 3
 
 module load anaconda
 
@@ -15,23 +15,22 @@ module load anaconda
 start=$(date +%s)
 
 # Define the arguments for each array index
-hidden_size=(64 128 256 512)
-latent_size=(4 8 16 32 64)
-counter=1
+# hidden_size=(64 128 256 512)
+# latent_size=(4 8 16 32 64)
 
-for h in "${hidden_size[@]}"; do
-  for l in "${latent_size[@]}"; do
-    case $SLURM_ARRAY_TASK_ID in
-        $counter)
-        ARGS="--hidden_size $h --latent_size $l"
-        ;;
-    esac
-    let counter++
-  done
-done
+# for h in "${hidden_size[@]}"; do
+#   for l in "${latent_size[@]}"; do
+#     case $SLURM_ARRAY_TASK_ID in
+#         $counter)
+#         ARGS="--hidden_size $h --latent_size $l"
+#         ;;
+#     esac
+#     let counter++
+#   done
+# done
 
 #Command to execute Python program
-python models/lstmvae/vi.py $ARGS
+python models/lstmvae/vi.py --hidden_size 512 --latent_size 8
 
 # End the timer
 end=$(date +%s)
@@ -40,5 +39,5 @@ end=$(date +%s)
 time_taken=$((end-start))
 
 # print the time taken
-echo "End of Mosaic run. Time taken : $time_taken seconds." 
+echo "End of Regression Training. Time taken : $time_taken seconds." 
 # End of file

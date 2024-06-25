@@ -38,7 +38,7 @@ class lstm_decoder(nn.Module):
                             hidden_size = self.hidden_size,
                             num_layers = self.num_layers,
                             batch_first = True,
-                            bidirectional=True)
+                            bidirectional=False)
         
         self.fc = nn.Linear(self.hidden_size, self.output_size)
         
@@ -48,20 +48,20 @@ class lstm_decoder(nn.Module):
         prediction = self.fc(output)
         return prediction, (hidden, cell)
     
-class BiLSTMVAE(nn.Module):
+class BILSTMVAE(nn.Module):
     def __init__(self, input_size, hidden_size, latent_size, num_layers = 1):
-        super(BiLSTMVAE, self).__init__()
+        super(BILSTMVAE, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.latent_size = latent_size
         self.num_layers = num_layers
 
         self.encoder = lstm_encoder(input_size=input_size, hidden_size = hidden_size, num_layers=num_layers)
-        self.mean = nn.Linear(hidden_size, latent_size)
-        self.logvar = nn.Linear(hidden_size, latent_size)
+        self.mean = nn.Linear(hidden_size * 2, latent_size)
+        self.logvar = nn.Linear(hidden_size * 2, latent_size)
+
         self.decoder_input = nn.Linear(latent_size, hidden_size)
         self.decoder = lstm_decoder(input_size=latent_size, output_size = input_size, hidden_size=hidden_size, num_layers=num_layers)
-
 
     def reparameterize(self, mu, logvar):
         std = torch.exp(0.5*logvar)
@@ -76,27 +76,33 @@ class BiLSTMVAE(nn.Module):
         x_hat, (hidden, cell) = self.decoder(z, hidden)
         return x_hat, (hidden, cell)
     
-    def reparameterize(self, mu, logvar):
-        std = torch.exp(0.5*logvar)
-        eps = torch.randn_like(std)
-        return mu + eps*std
-    
-    def forward(self, x):
-        batch_size, seq_len, _ = x.data.size()
-        hidden, cell = self.encode(x)
 
-        mu = self.mean(hidden)
-        logvar = self.logvar(hidden)
+    def forward(self, x):
+        batch_size, seq_len, _ = x.shape
+        h_n, cell = self.encode(x)
+
+        h_n = h_n.view(self.num_layers, 2, -1, self.hidden_size)
+        h_n = h_n[-1]
+        h_n = h_n.permute(1, 0, 2).reshape(-1, self.hidden_size * 2)
+
+        mu = self.mean(h_n)
+        logvar = self.logvar(h_n)
+
         z = self.reparameterize(mu, logvar)
-        z_0 = z
         h_ = self.decoder_input(z)
         
+        z_copy = z
         z = z.repeat(1, seq_len, 1)
         z = z.view(batch_size, seq_len, self.latent_size)
 
         # initialize hidden state
+        h_ = h_.unsqueeze(0)
         hidden = (h_.contiguous(), h_.contiguous())
+        #h_0 = torch.zeros(self.num_layers, z.size(0), self.hidden_size).to(z.device)
+        #c_0 = torch.zeros(self.num_layers, z.size(0), self.hidden_size).to(z.device)
+        #output, _ = self.decoder_lstm(z, (h_0, c_0))
+
         x_hat, _ = self.decode(z, hidden)
 
-        return x_hat, z_0, mu, logvar
+        return x_hat, z_copy, mu, logvar
     

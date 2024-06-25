@@ -49,8 +49,6 @@ class SinusoidalDataset(Dataset):
 
         parameters_tensor = torch.tensor(parameters, dtype=torch.float32)
         observations_tensor = torch.tensor(observations, dtype=torch.float32)
-        # observations_tensor = (observations_tensor + 5.825352944438144e-09)/(670.4232307413174+5.825352944438144e-09)
-        observations_tensor = (observations_tensor - torch.mean(observations_tensor))/(torch.std(observations_tensor))
         return parameters_tensor, observations_tensor
 
 def pad_collate(batch):
@@ -68,8 +66,6 @@ def train_vae(model, train_loader, test_loader, save_path = 'LV_EQUATION_LSTM.pt
     optimizer = torch.optim.Adam(model.parameters(), learning_rate)
 
     ## interation setup
-    batch_train_loss = []
-    batch_val_loss = []
     kld_weight = 0.00025
     recon_weight = 1.0
     
@@ -108,10 +104,11 @@ def train_vae(model, train_loader, test_loader, save_path = 'LV_EQUATION_LSTM.pt
 
             train_loss += total_loss.item()
 
-        print(f"Epoch: {epoch} Train Loss : {train_loss/len(train_loader)}")
-        print(f"Epoch: {epoch} Reconstruction Loss : {recon_loss}")
-        print(f"Epoch: {epoch} KL divergence Loss : {kl_div_loss}")
-        print(f"Epoch: {epoch} Wegihted KL divergence Loss : {kld_weight*kl_div_loss}")
+        if epoch % 50 == 0:
+            print(f"Epoch: {epoch} Train Loss : {train_loss/len(train_loader)}")
+            print(f"Epoch: {epoch} Reconstruction Loss : {recon_loss}")
+            print(f"Epoch: {epoch} KL divergence Loss : {kl_div_loss}")
+            print(f"Epoch: {epoch} Wegihted KL divergence Loss : {kld_weight*kl_div_loss}")
 
         model.eval()
         eval_loss = 0.0
@@ -134,10 +131,12 @@ def train_vae(model, train_loader, test_loader, save_path = 'LV_EQUATION_LSTM.pt
                 total_loss = recon_weight*recon_loss + kld_weight*kl_div_loss
                 eval_loss += total_loss.item()
 
+        if epoch % 50 == 0:
             print(f"Epoch: {epoch} Validation Loss : {eval_loss/len(test_loader)}")
             print(f"Epoch: {epoch} Reconstruction Loss : {recon_loss}")
             print(f"Epoch: {epoch} KL Divergence Loss : {kl_div_loss}")
             print(f"Epoch: {epoch} Wegihted KL divergence Loss : {kld_weight*kl_div_loss}")
+
         if eval_loss/len(test_loader) < best_loss:
             best_loss = eval_loss/len(test_loader)
             torch.save(model.state_dict(), f'{save_path}')

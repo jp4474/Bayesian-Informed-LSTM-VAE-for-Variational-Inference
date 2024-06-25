@@ -23,7 +23,7 @@ for h in "${hidden_size[@]}"; do
   for l in "${latent_size[@]}"; do
     case $SLURM_ARRAY_TASK_ID in
         $counter)
-        ARGS="--hidden_size $h --latent_size $l --model_name LV_EQUATION_LSTM_NORM"
+        ARGS="--hidden_size $h --latent_size $l --model_name LV_EQUATION_BILSTM"
         ;;
     esac
     let counter++
@@ -31,13 +31,15 @@ for h in "${hidden_size[@]}"; do
 done
 
 #Command to execute Python program
-python models/lstmvae/train_vae.py $ARGS
+python models/bilstmvae/train_vae.py $ARGS
  
 # End the timer
 end=$(date +%s)
 
 # Calculate the time taken
 time_taken=$((end-start))
+
+echo $ARGS
 
 # print the time taken
 echo "End of Training. Time taken : $time_taken seconds."
